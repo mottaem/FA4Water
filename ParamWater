@@ -1,0 +1,35 @@
+library(readxl)
+> library(multcomp)
+install.packages('multcomp', repos='http://cran.us.r-project.org', dependencies=TRUE)
+library(multcomp)
+#read file
+data <- read_excel("C:/Users/m051319m/OneDrive - Staffordshire University/Desktop/salida_v4.xlsx", sheet= "SALID")
+> View(data)
+data$LUGAR<-factor(data$LUGAR,levels=c("Cieneguilla","Pachacamac","Calango","Mala","Lunahuana","Canete"))
+> View(data)
+install.packages('lme4', repos='http://cran.us.r-project.org', dependencies=TRUE)
+install.packages('ggplot2', repos='http://cran.us.r-project.org', dependencies=TRUE)
+#GGLM 
+library(lme4)
+library(ggplot2)
+# Fit the GLMM for COND as the response variable
+model_cond <- lmer(COND ~ 1 + (1 | LUGAR), data = data, REML = FALSE)
+summary(model_cond)
+# Fit the GLMM for TDS as the response variable
+model_tds <- lmer(TDS ~ 1 + (1 | LUGAR), data = data, REML = FALSE)
+summary(model_tds)
+#Plot the random effects
+library(ggplot2)
+ranef_cond <- ranef(model_cond)$LUGAR
+ranef_tds <- ranef(model_tds)$LUGAR
+# Plot random effects for COND
+ggplot(data.frame(LUGAR = rownames(ranef_cond), Effect = ranef_cond[,1]), aes(x = LUGAR, y = Effect)) +
++     geom_point() +
++     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
++     ggtitle("Random Effects for Conductivity")
+> 
+> # Plot random effects for TDS
+ggplot(data.frame(LUGAR = rownames(ranef_tds), Effect = ranef_tds[,1]), aes(x = LUGAR, y = Effect)) +
++     geom_point() +
++     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
++     ggtitle("Random Effects for Total Dissolved Solids")
