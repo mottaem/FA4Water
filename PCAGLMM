@@ -1,0 +1,107 @@
+# Load required libraries
+library(readxl)
+library(lme4)
+library(lmerTest)
+library(dplyr)
+
+# Read the main data file
+data <- read_excel("PAR_WATER_FA4.xlsx")
+
+# Read the PC loadings file
+pc_loadings <- read_excel("PC1andPC2 scores.xlsx")
+
+# Rename the first column of pc_loadings to match the variable names in the main data
+pc_loadings$`Unnamed: 0` <- c("COND", "TDS", "pH", "TEMP", "DUR_mg_l", "ALK", "PHOS", "NIT", "OD")
+
+# Function to calculate PC scores
+calculate_pc_scores <- function(data, loadings) {
+  variables <- intersect(loadings$`Unnamed: 0`, names(data))
+  data_subset <- data[, variables]
+  loadings_subset <- loadings[loadings$`Unnamed: 0` %in% variables, ]
+  complete_rows <- complete.cases(data_subset)
+  data_std <- scale(data_subset[complete_rows, ])
+  pc_scores <- as.data.frame(as.matrix(data_std) %*% as.matrix(loadings_subset[, c("PC1", "PC2")]))
+  colnames(pc_scores) <- c("PC1", "PC2")
+  pc_scores$row_index <- which(complete_rows)
+  return(pc_scores)
+}
+
+# Calculate PC scores
+pc_scores <- calculate_pc_scores(data, pc_loadings)
+
+# Merge PC scores back to the original data
+data_with_pc <- merge(data, pc_scores, by.x = "NUM", by.y = "row_index", all.x = TRUE)
+
+# Convert LUGAR and ESTACION to factors
+data_with_pc$LUGAR <- as.factor(data_with_pc$LUGAR)
+data_with_pc$ESTACION <- as.factor(data_with_pc$ESTACION)
+
+# Print levels of ESTACION
+print("Levels of ESTACION:")
+print(levels(data_with_pc$ESTACION))
+
+# Ensure both 'seca' and 'crecida' are included in ESTACION levels
+data_with_pc$ESTACION <- factor(data_with_pc$ESTACION, levels = c("seca", "crecida"))
+
+# Print updated levels of ESTACION
+print("Updated levels of ESTACION:")
+print(levels(data_with_pc$ESTACION))
+
+# Remove rows with NA in PC1, PC2, LUGAR, or ESTACION
+data_with_pc <- data_with_pc %>% 
+  filter(!is.na(PC1) & !is.na(PC2) & !is.na(LUGAR) & !is.na(ESTACION))
+
+# Model 1: PC1 as response variable
+model_pc1 <- lmer(PC1 ~ ESTACION + (1|LUGAR), data = data_with_pc)
+
+# Model 2: PC2 as response variable
+model_pc2 <- lmer(PC2 ~ ESTACION + (1|LUGAR), data = data_with_pc)
+
+# Summary of models
+summary(model_pc1)
+summary(model_pc2)
+
+# ANOVA to test significance of fixed effect (ESTACION)
+anova(model_pc1)
+anova(model_pc2)
+
+# Calculate and print the variance explained by PC1 and PC2
+total_variance <- sum(pc_loadings$PC1^2) + sum(pc_loadings$PC2^2)
+variance_pc1 <- sum(pc_loadings$PC1^2) / total_variance
+variance_pc2 <- sum(pc_loadings$PC2^2) / total_variance
+
+cat("Variance explained by PC1:", variance_pc1 * 100, "%\n")
+cat("Variance explained by PC2:", variance_pc2 * 100, "%\n")
+
+# Print the number of observations
+cat("Number of observations in original data:", nrow(data), "\n")
+cat("Number of observations with PC scores:", nrow(pc_scores), "\n")
+cat("Number of observations used in models:", nrow(data_with_pc), "\n")
+
+# Print the levels of LUGAR and ESTACION
+cat("Levels of LUGAR:", levels(data_with_pc$LUGAR), "\n")
+cat("Levels of ESTACION:", levels(data_with_pc$ESTACION), "\n")
+
+# Print the counts of each ESTACION
+print(table(data_with_pc$ESTACION))
+library(ggplot2)
+> #Plot the random effects
+> ranef_pc1 <- ranef(model_pc1)$LUGAR
+> ranef_pc2 <- ranef(model_pc2)$LUGAR
+> # Plot random effects for PC1
+
+ ggplot(data.frame(LUGAR = rownames(ranef_pc1), Effect = ranef_pc1[,1]), aes(x = LUGAR, y = Effect)) +
++     geom_point()+
++     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
++ ggtitle("Random Effects for PC1")
+> ggplot(data.frame(LUGAR = rownames(ranef_pc1), Effect = ranef_pc1[,1]), aes(x = LUGAR, y = Effect)) +
++     geom_point()+
++     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
++     ggtitle("Random Effects for PC1")+
++     labs(x="Location")
+> # Plot random effects for PC2
+> ggplot(data.frame(LUGAR = rownames(ranef_pc2), Effect = ranef_pc2[,1]), aes(x = LUGAR, y = Effect)) +
++     geom_point()+
++     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
++     ggtitle("Random Effects for PC2")+
++     labs(x="Location")
